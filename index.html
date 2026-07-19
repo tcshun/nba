@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Guess the NBA Player! NBA 猜猜我是誰</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        screens: {
+          'xs': '375px',
+          'sm': '640px',
+          'md': '768px',
+        },
+        extend: {
+          colors: {
+            nbaBlue: '#002D62',
+            nbaRed: '#C9082A',
+            darkBg: '#0b0f19',
+          },
+          boxShadow: {
+            neonBlue: '0 0 15px rgba(59, 130, 246, 0.5)',
+            neonRed: '0 0 15px rgba(239, 68, 68, 0.5)',
+            neonAmber: '0 0 15px rgba(245, 158, 11, 0.6)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar for mobile suggestion list */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+    }
+    /* Shake animations */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shake 0.3s ease-in-out;
+    }
+    .court-line {
+      stroke: rgba(255, 255, 255, 0.06);
+      stroke-width: 1.5;
+      fill: none;
+    }
+  </style>
+</head>
+<body class="bg-darkBg text-gray-100 font-sans min-h-screen flex flex-col justify-between overflow-x-hidden select-none">
+
+  <!-- Confetti Canvas -->
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50 w-full h-full"></canvas>
+
+  <!-- Header -->
+  <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30 px-3 py-2.5 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <!-- NBA Logo Style Icon -->
+      <div class="bg-gradient-to-r from-blue-600 via-white to-red-600 p-0.5 rounded-sm flex items-center justify-center w-6 h-9 shadow-md">
+        <svg class="w-full h-full text-slate-900" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-sm xs:text-base font-black tracking-wider leading-none text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-blue-400">GUESS THE NBA PLAYER</h1>
+        <span class="text-[10px] xs:text-xs font-bold tracking-widest text-slate-400">NBA 猜猜我是誰</span>
+      </div>
+    </div>
+    
+    <!-- Action buttons -->
+    <div class="flex items-center space-x-2.5">
+      <!-- Audio Toggle -->
+      <button id="audio-toggle" class="text-slate-400 hover:text-white transition duration-200 text-base w-7 h-7 flex items-center justify-center rounded-full bg-slate-800" onclick="toggleAudio()">
+        <i id="audio-icon" class="fa-solid fa-volume-high"></i>
+      </button>
+      <!-- Stats / Info Button -->
+      <button class="text-slate-400 hover:text-white transition duration-200 text-base w-7 h-7 flex items-center justify-center rounded-full bg-slate-800" onclick="showHelpModal()">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Game Section (Fully Responsive Container) -->
+  <main class="flex-grow flex flex-col items-center justify-start px-3 py-3 w-full max-w-md mx-auto space-y-3.5 relative">
+    
+    <!-- Basketball Court background graphic behind silhouette -->
+    <div class="absolute inset-0 top-12 bottom-48 opacity-30 pointer-events-none z-0">
+      <svg class="w-full h-full" viewBox="0 0 100 120">
+        <!-- Half court line -->
+        <line x1="0" y1="10" x2="100" y2="10" class="court-line" />
+        <!-- Key -->
+        <rect x="30" y="10" width="40" height="35" class="court-line" />
+        <!-- Free throw circle -->
+        <path d="M 30,45 A 20,20 0 0,0 70,45" class="court-line" />
+        <path d="M 30,45 A 20,20 0 0,1 70,45" stroke-dasharray="2,2" class="court-line" />
+        <!-- Three point line -->
+        <path d="M 5,10 L 5,20 A 45,45 0 0,0 95,20 L 95,10" class="court-line" />
+        <!-- Center circle -->
+        <path d="M 35,110 A 15,15 0 0,1 65,110" class="court-line" />
+      </svg>
+    </div>
+
+    <!-- Top Scoreboard Row -->
+    <div class="w-full flex justify-between items-center bg-slate-900/60 backdrop-blur-md px-3 py-2 rounded-xl border border-slate-800/80 z-10 text-[11px] xs:text-xs">
+      <div class="flex items-center space-x-1 text-amber-400">
+        <i class="fa-solid fa-fire text-xs xs:text-sm animate-pulse"></i>
+        <span>目前連勝: <strong id="current-streak" class="text-xs xs:text-sm">0</strong></span>
+      </div>
+      <div class="flex items-center space-x-1.5 text-red-400 font-bold">
+        <span>生命值:</span>
+        <span id="lives-display" class="tracking-wide">🏀🏀🏀</span>
+      </div>
+      <div class="bg-blue-600/20 text-blue-400 px-2.5 py-0.5 rounded-full font-bold border border-blue-500/30">
+        第 <span id="round-num">1</span> 關
+      </div>
+    </div>
+
+    <!-- Central Card: Silhouette & Path -->
+    <div class="w-full bg-gradient-to-b from-slate-900/90 to-slate-950/95 rounded-2xl border border-slate-800/80 p-4 shadow-2xl flex flex-col items-center justify-between min-h-[290px] z-10 space-y-3">
+      
+      <!-- Player Silhouette Icon with Neon glow -->
+      <div class="relative w-20 h-20 xs:w-24 xs:h-24 flex items-center justify-center rounded-full bg-slate-800/50 border border-slate-700 shadow-neonBlue overflow-hidden">
+        <div id="silhouette-glow" class="absolute inset-0 bg-blue-500/10 animate-pulse"></div>
+        <!-- Shadow SVG player -->
+        <svg id="player-silhouette-svg" class="w-14 h-14 xs:w-16 xs:h-16 text-slate-900 filter drop-shadow-[0_0_6px_rgba(59,130,246,0.3)]" viewBox="0 0 100 100" fill="currentColor">
+          <path d="M50,15 C42,15 36,21 36,29 C36,37 42,43 50,43 C58,43 64,37 64,29 C64,21 58,15 50,15 Z M25,85 C25,75 32,65 42,60 C40,55 42,50 45,46 C47,44 53,44 55,46 C58,50 60,55 58,60 C68,65 75,75 75,85 C75,88 73,90 70,90 L30,90 C27,90 25,88 25,85 Z" />
+        </svg>
+        <span id="silhouette-question" class="absolute text-xl xs:text-2xl font-black text-blue-400 drop-shadow-md">?</span>
+      </div>
+
+      <!-- Career Path Row -->
+      <div class="w-full flex flex-col items-center space-y-1.5 overflow-hidden">
+        <div class="text-[10px] xs:text-xs text-slate-400 tracking-wider uppercase font-semibold">生涯效力球隊次序</div>
+        
+        <!-- Teams List Container with flexible auto wrapping and size -->
+        <div id="career-path-container" class="flex flex-wrap items-center justify-center gap-1 xs:gap-1.5 py-1 w-full max-w-full overflow-hidden">
+          <!-- Dynamically filled with team badges and arrows -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Hints Area -->
+    <div class="w-full space-y-1.5 z-10">
+      <button onclick="getHint()" id="get-hint-btn" class="w-full bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 text-amber-400 border border-amber-500/30 py-3 rounded-xl text-xs xs:text-sm font-bold transition flex items-center justify-center space-x-2">
+        <i class="fa-solid fa-lightbulb"></i>
+        <span>獲取提示 (消耗 1 個 🏀)</span>
+      </button>
+
+      <!-- Hint Content Box (Accordion style) -->
+      <div id="hint-display-box" class="hidden bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-[11px] xs:text-xs text-slate-300 leading-relaxed transition-all duration-300">
+        <strong id="hint-title" class="text-amber-400 block mb-0.5"></strong>
+        <p id="hint-body"></p>
+      </div>
+    </div>
+
+    <!-- Guesses & Autocomplete Form -->
+    <div class="w-full space-y-1.5 z-10 relative">
+      <div class="text-[11px] xs:text-xs text-slate-400 flex justify-between">
+        <span>輸入球星姓名或外號猜測：</span>
+        <span>提示解鎖: <strong id="hints-revealed-text" class="text-slate-200">0/3</strong></span>
+      </div>
+
+      <div class="relative w-full">
+        <!-- Input Field Container -->
+        <div class="flex items-center bg-slate-900/90 border-2 border-slate-700 rounded-xl px-2.5 py-0.5 focus-within:border-blue-500 shadow-lg transition duration-200">
+          <i class="fa-solid fa-magnifying-glass text-slate-500 mr-2 text-xs"></i>
+          <input 
+            type="text" 
+            id="player-search-input" 
+            class="bg-transparent w-full focus:outline-none text-xs xs:text-sm py-2 text-white placeholder-slate-500" 
+            placeholder="搜尋球星，如：畢拿、LeBron..."
+            autocomplete="off"
+            oninput="handleSearchInput()"
+            onfocus="handleSearchInput()"
+          >
+          <button id="clear-search" class="hidden text-slate-500 hover:text-slate-300 px-1" onclick="clearSearch()">
+            <i class="fa-solid fa-circle-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Autocomplete Dropdown List -->
+        <div id="suggestions-list" class="hidden absolute left-0 right-0 bottom-full mb-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl max-h-40 overflow-y-auto custom-scroll z-40 divide-y divide-slate-900">
+          <!-- Suggested items populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Control actions (Only "Submit", Full Width) -->
+      <div class="w-full">
+        <button onclick="submitGuess()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white py-3 rounded-xl text-xs xs:text-sm font-black tracking-wider transition shadow-neonBlue">
+          確定送出猜測 <i class="fa-solid fa-paper-plane ml-1"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Incorrect Guesses log -->
+  <div id="wrong-guesses-log" class="w-full hidden bg-red-950/20 border border-red-900/30 rounded-xl p-3 z-10 text-[11px] xs:text-xs text-red-400 space-y-1">
+    <span class="font-bold block"><i class="fa-solid fa-circle-exclamation mr-1"></i> 錯誤猜測紀錄：</span>
+    <ul id="wrong-list" class="list-disc list-inside space-y-0.5 text-slate-300"></ul>
+  </div>
+
+</main>
+
+<!-- Help / Info Modal -->
+<div id="help-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-xs p-4 space-y-3.5">
+      <div class="flex justify-between items-center border-b border-slate-900 pb-2.5">
+        <h3 class="font-black text-sm xs:text-base text-amber-400 flex items-center">
+          <i class="fa-solid fa-circle-question mr-1.5"></i> 遊戲如何遊玩？
+        </h3>
+        <button onclick="closeHelpModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-base"></i></button>
+      </div>
+      <div class="text-[11px] xs:text-xs space-y-2.5 leading-relaxed text-slate-300">
+        <p>1. 畫面中央展示了一位神秘球星<strong>曾經效力過</strong>的 NBA 球隊軌跡（左至右為時間順序）。</p>
+        <p>2. 根據這些球隊的<strong>官方真實 Logo</strong>，猜測這名球星是誰。</p>
+        <p>3. 支援<strong>智慧中文、英文、以及廣東話粵語譯名</strong>搜尋輸入（例如：輸入「畢拿」、「巴特勒」或「Butler」皆可找到 <em>Jimmy Butler</em>）。</p>
+        <p>4. 若遇到困難，可點擊下方的<strong>獲取提示</strong>解鎖提示，但每次會<strong>消耗 1 個生命值🏀</strong>。</p>
+        <p>5. 您一共擁有 <strong>3 個生命值🏀</strong>，猜錯或點擊提示皆會扣減，扣完即挑戰結束！</p>
+      </div>
+      <button onclick="closeHelpModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs transition">
+        開始挑戰！
+      </button>
+    </div>
+  </div>
+
+  <!-- End Game / Success Modal -->
+  <div id="result-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-950 border-2 border-slate-800 rounded-2xl w-full max-w-xs p-5 space-y-4 text-center shadow-neonAmber">
+      
+      <!-- Icon/Status -->
+      <div class="flex flex-col items-center space-y-0.5">
+        <div id="result-status-icon" class="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500 flex items-center justify-center text-2xl text-amber-400 animate-bounce">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <h2 id="result-title" class="font-black text-lg text-amber-400 tracking-wide mt-1.5">答案正確！</h2>
+        <p id="result-subtitle" class="text-[11px] text-slate-400"></p>
+      </div>
+
+      <!-- Player Profile Card inside Modal -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 text-left space-y-2">
+        <div class="flex justify-between items-start border-b border-slate-800 pb-1.5">
+          <div>
+            <h3 id="result-player-name-zh" class="font-black text-base text-white"></h3>
+            <span id="result-player-name-en" class="text-[10px] text-slate-400"></span>
+          </div>
+          <span id="result-player-pos" class="bg-blue-900/40 text-blue-300 text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-blue-500/20"></span>
+        </div>
+        
+        <div class="text-[11px] space-y-1 text-slate-300">
+          <div><span class="text-slate-500">🏀 選秀：</span><span id="result-player-draft"></span></div>
+          <div><span class="text-slate-500">🏫 學校：</span><span id="result-player-college"></span></div>
+          <div><span class="text-slate-500">🔢 號碼：</span><span id="result-player-jersey"></span></div>
+          <div class="pt-1 border-t border-slate-800 text-[10px] leading-relaxed italic text-amber-200/90" id="result-player-fact"></div>
+        </div>
+      </div>
+
+      <!-- Stats section -->
+      <div class="bg-slate-900/50 rounded-xl p-2.5 text-center">
+        <span id="result-streak-label" class="text-slate-500 block text-[9px] uppercase">當前連勝</span>
+        <strong id="result-streak" class="text-base text-amber-400">0</strong>
+      </div>
+
+      <!-- Actions -->
+      <div class="pt-1">
+        <button id="result-next-btn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-2.5 rounded-xl text-xs xs:text-sm transition shadow-neonBlue">
+          進入下一關挑戰 <i class="fa-solid fa-circle-arrow-right ml-1"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Grand Finale / Hall of Fame End Game Modal -->
+  <div id="hof-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-950 border-2 border-amber-500 rounded-3xl w-full max-w-sm p-6 space-y-5 text-center shadow-neonAmber relative overflow-hidden">
+      <!-- Decorative light beam -->
+      <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Champion Header -->
+      <div class="flex flex-col items-center space-y-1 z-10 relative">
+        <div class="w-16 h-16 rounded-full bg-gradient-to-r from-yellow-500 to-amber-600 flex items-center justify-center text-3xl text-white shadow-lg animate-pulse">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <h2 class="font-black text-xl text-amber-400 tracking-widest mt-2">恭喜！賽季完美通關！</h2>
+        <p class="text-[11px] text-slate-400 uppercase tracking-widest">NAISMITH HALL OF FAME</p>
+      </div>
+
+      <!-- Achievement Evaluation -->
+      <div class="bg-slate-900/85 border border-amber-500/30 rounded-2xl p-4 text-center space-y-3 z-10 relative">
+        <div class="text-xs text-slate-400">奈史密斯籃球名人堂評定您的榮譽：</div>
+        
+        <!-- Animated Title Badge -->
+        <div class="inline-block px-4 py-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-sm rounded-full shadow-lg border border-yellow-200 uppercase tracking-wider animate-bounce" id="hof-rating-title">
+          GOAT 歷史第一人
+        </div>
+
+        <div class="text-[11px] text-slate-300 leading-relaxed italic" id="hof-rating-desc"></div>
+      </div>
+
+      <!-- Ultimate Stats Grid -->
+      <div class="grid grid-cols-2 gap-3 text-xs bg-slate-900/60 rounded-xl p-3 z-10 relative">
+        <div class="border-r border-slate-800 text-center">
+          <span class="text-slate-500 block text-[10px] uppercase">最高連勝關數</span>
+          <strong id="hof-max-streak" class="text-base text-amber-400">0</strong>
+        </div>
+        <div class="text-center">
+          <span class="text-slate-500 block text-[10px] uppercase">完成總關數</span>
+          <strong id="hof-total-cleared" class="text-base text-slate-200">0 / 0</strong>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="space-y-2.5 z-10 relative">
+        <button onclick="restartGame()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black py-3 rounded-xl text-xs xs:text-sm transition shadow-neonAmber">
+          <i class="fa-solid fa-arrows-rotate mr-1"></i> 重新挑戰
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS Game Logic -->
+  <script>
+    // 1. Core NBA Player Data Pool
+    const players = [
+      {
+        id: "jimmy-butler",
+        nameEn: "Jimmy Butler",
+        nameZhtw: "吉米·巴特勒",
+        nameZhhk: "占士·畢拿",
+        aliases: ["Butler", "Jimmy", "巴特勒", "畢拿", "咖啡哥", "Playoff Jimmy", "吉米巴特勒", "占士畢拿", "JB", "Buckets"],
+        path: ["CHI", "MIN", "PHI", "MIA", "GSW"],
+        position: "小前鋒 / 得分後衛 (SF / SG)",
+        draft: "2011年首輪第30順位 (芝加哥公牛)",
+        college: "Marquette 馬奎特大學",
+        jersey: "21 (公牛), 23 (灰狼/76人), 22 (熱火), 10 (勇士)",
+        funFact: "以強悍防守與「季後賽硬漢」聞名，創立了「Big Face Coffee」自創品牌。現已加盟勇士隊繼續追尋冠軍夢。"
+      },
+      {
+        id: "lebron-james",
+        nameEn: "LeBron James",
+        nameZhtw: "勒布朗·詹姆斯",
+        nameZhhk: "勒邦·占士",
+        aliases: ["LeBron", "James", "詹姆斯", "占士", "詹皇", "LBJ", "King James", "大帝", "詹老漢"],
+        path: ["CLE", "MIA", "CLE", "LAL"],
+        position: "小前鋒 / 大前鋒 (SF / PF)",
+        draft: "2003年首輪第1順位 (選秀狀元 - 克里夫蘭騎士)",
+        college: "St. Vincent-St. Mary 高中 (直升NBA)",
+        jersey: "23 (騎士/湖人), 6 (熱火/湖人)",
+        funFact: "NBA 歷史常規賽得分王，四次總冠軍與四次 MVP 得主，在騎士和熱火都取得極高成就。"
+      },
+      {
+        id: "kevin-durant",
+        nameEn: "Kevin Durant",
+        nameZhtw: "凱文·杜蘭特",
+        nameZhhk: "奇雲·杜蘭特",
+        aliases: ["Durant", "KD", "杜蘭特", "杜老四", "死神", "Slim Reaper", "包工頭"],
+        path: ["OKC", "GSW", "BKN", "PHX"],
+        position: "小前鋒 / 大前鋒 (SF / PF)",
+        draft: "2007年首輪第2順位 (選秀榜眼 - 超音速/雷霆)",
+        college: "Texas 德州大學奧斯汀分校",
+        jersey: "35 (雷霆/勇士/籃網/太陽), 7 (籃網)",
+        funFact: "擁有中鋒身高及後衛持球技術的終極得分機器，曾帶領勇士奪下兩屆總冠軍與 FMVP。"
+      },
+      {
+        id: "kyrie-irving",
+        nameEn: "Kyrie Irving",
+        nameZhtw: "凱里·歐文",
+        nameZhhk: "凱里·艾榮",
+        aliases: ["Kyrie", "Irving", "歐文", "艾榮", "德魯大叔", "Uncle Drew", "歐神仙"],
+        path: ["CLE", "BOS", "BKN", "DAL"],
+        position: "控球後衛 (PG)",
+        draft: "2011年首輪第1順位 (選秀狀元 - 克里夫蘭騎士)",
+        college: "Duke 杜克大學",
+        jersey: "2 (騎士/獨行俠), 11 (塞爾提克/籃網)",
+        funFact: "公認擁有 NBA 歷史上最華麗、最強的地板運球過人與極限拉桿上籃技巧。"
+      },
+      {
+        id: "james-harden",
+        nameEn: "James Harden",
+        nameZhtw: "詹姆斯·哈登",
+        nameZhhk: "占士·哈登",
+        aliases: ["Harden", "哈登", "大鬍子", "The Beard", "登哥", "夜店之王"],
+        path: ["OKC", "HOU", "BKN", "PHI", "LAC"],
+        position: "得分後衛 / 控球後衛 (SG / PG)",
+        draft: "2009年首輪第3順位 (選秀探花 - 奧克拉荷馬雷霆)",
+        college: "Arizona State 亞利桑那州立大學",
+        jersey: "13 (雷霆/火箭/籃網/快艇), 1 (76人)",
+        funFact: "招牌後撤步三分與歐洲步，前例行賽 MVP，在休士頓火箭時期打出史詩級得分數據。"
+      },
+      {
+        id: "russell-westbrook",
+        nameEn: "Russell Westbrook",
+        nameZhtw: "拉塞爾·威斯布魯克",
+        nameZhhk: "羅素·韋斯布祿",
+        aliases: ["Westbrook", "威斯布魯克", "韋斯布祿", "威少", "龜哥", "Brodie", "忍者龜", "大三元猛獸"],
+        path: ["OKC", "HOU", "WAS", "LAL", "LAC", "DEN"],
+        position: "控球後衛 (PG)",
+        draft: "2008年首輪第4順位 (奧克拉荷馬雷霆)",
+        college: "UCLA 加州大學洛杉磯分校",
+        jersey: "0 (雷霆/火箭/奇才/湖人/快艇), 4 (奇才/金塊)",
+        funFact: "「大三元製造機」，曾創造單季 42 次大三元神蹟，為 NBA 歷史大三元次數榜首。"
+      },
+      {
+        id: "chris-paul",
+        nameEn: "Chris Paul",
+        nameZhtw: "克里斯·保羅",
+        nameZhhk: "祈斯·保羅",
+        aliases: ["Paul", "保羅", "CP3", "控衛之神", "香蕉船兄弟", "聖保羅"],
+        path: ["NOP", "LAC", "HOU", "OKC", "PHX", "GSW", "SAS"],
+        position: "控球後衛 (PG)",
+        draft: "2005年首輪第4順位 (紐奧良黃蜂)",
+        college: "Wake Forest 維克森林大學",
+        jersey: "3 (所有效力球隊均使用3號球衣)",
+        funFact: "傳統控衛的極致代表，帶隊上限保證。不論效力何隊皆能大幅提升該隊勝率。"
+      },
+      {
+        id: "kawhi-leonard",
+        nameEn: "Kawhi Leonard",
+        nameZhtw: "科懷·雷納德",
+        nameZhhk: "卡威·倫納德",
+        aliases: ["Kawhi", "Leonard", "雷納德", "倫納德", "可愛", "面癱", "The Claw", "機器人"],
+        path: ["SAS", "TOR", "LAC"],
+        position: "小前鋒 (SF)",
+        draft: "2011年首輪第15順位 (印第安納溜馬選中後交易至馬刺)",
+        college: "San Diego State 聖地牙哥州立大學",
+        jersey: "2 (所有效力球隊均使用2號球衣)",
+        funFact: "以巨大手掌與窒息性死亡纏繞防守聞名，先後率領馬刺及暴龍奪得總冠軍與兩座 FMVP。"
+      },
+      {
+        id: "paul-george",
+        nameEn: "Paul George",
+        nameZhtw: "保羅·喬治",
+        nameZhhk: "保羅·佐治",
+        aliases: ["George", "喬治", "佐治", "PG13", "泡椒", "Paul George"],
+        path: ["IND", "OKC", "LAC", "PHI"],
+        position: "小前鋒 / 得分後衛 (SF / SG)",
+        draft: "2010年首輪第10順位 (印第安納溜馬)",
+        college: "Fresno State 弗雷斯諾州立大學",
+        jersey: "24 (溜馬初期), 13 (溜馬後期/雷霆/快艇), 8 (76人)",
+        funFact: "攻防一體的明星小前鋒，經歷過小腿重傷後浴火重生，現於費城76人聯手 Embiid。"
+      },
+      {
+        id: "derrick-rose",
+        nameEn: "Derrick Rose",
+        nameZhtw: "德里克·羅斯",
+        nameZhhk: "戴歷·路斯",
+        aliases: ["Rose", "羅斯", "路斯", "飆風玫瑰", "最年輕MVP", "玫瑰", "D-Rose"],
+        path: ["CHI", "NYK", "CLE", "MIN", "DET", "NYK", "MEM"],
+        position: "控球後衛 (PG)",
+        draft: "2008年首輪第1順位 (選秀狀元 - 芝加哥公牛)",
+        college: "Memphis 曼菲斯大學",
+        jersey: "1 (公牛/騎士/活塞), 25 (尼克/灰狼/灰熊)",
+        funFact: "NBA 歷史上最年輕的常規賽 MVP，生涯歷經多次致命膝傷卻屢次重返賽場，人稱飆風玫瑰。"
+      },
+      {
+        id: "shaquille-oneal",
+        nameEn: "Shaquille O'Neal",
+        nameZhtw: "沙奎爾·奧尼爾",
+        nameZhhk: "沙基·奧尼爾",
+        aliases: ["Shaq", "ONeal", "奧尼爾", "歐尼爾", "鯊魚", "俠客", "大柴油機"],
+        path: ["ORL", "LAL", "MIA", "PHX", "CLE", "BOS"],
+        position: "中鋒 (C)",
+        draft: "1992年首輪第1順位 (選秀狀元 - 奧蘭多魔術)",
+        college: "LSU 路易斯安那州立大學",
+        jersey: "32 (魔術/熱火/太陽), 34 (湖人), 33 (騎士), 36 (塞爾提克)",
+        funFact: "NBA 歷史最具統治力的中鋒，力量大到曾多次扣碎與拉倒鋼製籃板架。"
+      },
+      {
+        id: "damian-lillard",
+        nameEn: "Damian Lillard",
+        nameZhtw: "達米安·利拉德",
+        nameZhhk: "達米安·利拿特",
+        aliases: ["Lillard", "利拉德", "利拿特", "小李", "Dame", "Dame Time", "利手錶"],
+        path: ["POR", "MIL"],
+        position: "控球後衛 (PG)",
+        draft: "2012年首輪第6順位 (波特蘭拓荒者)",
+        college: "Weber State 韋伯州立大學",
+        jersey: "0 (代表 Letter O 字，向其家鄉奧克蘭致敬)",
+        funFact: "冷血三分大師，擅長驚天的超遠三分與絕殺球，進球後指向手腕的「Dame Time」手勢為其標誌。"
+      },
+      {
+        id: "stephen-curry",
+        nameEn: "Stephen Curry",
+        nameZhtw: "斯蒂芬·庫里",
+        nameZhhk: "史提芬·居里",
+        aliases: ["Curry", "庫里", "居里", "萌神", "咖哩", "小學生", "庫皇", "SC30"],
+        path: ["GSW"],
+        position: "控球後衛 (PG)",
+        draft: "2009年首輪第7順位 (金州勇士)",
+        college: "Davidson 戴維森學院",
+        jersey: "30 (傳承其父親 Dell Curry 的號碼)",
+        funFact: "NBA 歷史三分球總數第一紀錄保持人。以一己之力改變了全世界現代籃球的進攻哲學與防守範圍。"
+      },
+      {
+        id: "dwight-howard",
+        nameEn: "Dwight Howard",
+        nameZhtw: "德懷特·霍華德",
+        nameZhhk: "迪韋特·侯活",
+        aliases: ["Howard", "霍華德", "侯活", "魔獸", "超人", "Dwight"],
+        path: ["ORL", "LAL", "HOU", "ATL", "CHA", "WAS", "LAL", "PHI", "LAL"],
+        position: "中鋒 (C)",
+        draft: "2004年首輪第1順位 (選秀狀元 - 奧蘭多魔術)",
+        college: "Southwest Atlanta Christian (高中直升)",
+        jersey: "12 (魔術/湖人/火箭/黃蜂/巫師), 39 (湖人第二、三期), 21 (76人)",
+        funFact: "曾創下 DPOY 三連霸的禁區守護神，擁有傲人的肩膀線條，也是2008年扣籃大賽「超人」冠軍。"
+      },
+      {
+        id: "klay-thompson",
+        nameEn: "Klay Thompson",
+        nameZhtw: "克萊·湯普森",
+        nameZhhk: "克雷·湯臣",
+        aliases: ["Klay", "Thompson", "湯普森", "湯臣", "湯神", "佛祖", "Splash Brother", "北京Klay"],
+        path: ["GSW", "DAL"],
+        position: "得分後衛 (SG)",
+        draft: "2011年首輪第11順位 (金州勇士)",
+        college: "Washington State 華盛頓州立大學",
+        jersey: "11 (勇士), 31 (獨行俠)",
+        funFact: "浪花兄弟成員，曾創下單節 37 分與單場 14 記三分球的瘋狂紀錄，防守與射術兼優。"
+      },
+      {
+        id: "anthony-davis",
+        nameEn: "Anthony Davis",
+        nameZhtw: "安東尼·戴維斯",
+        nameZhhk: "安東尼·戴維斯",
+        aliases: ["Davis", "AD", "戴維斯", "一眉", "濃眉", "一眉哥"],
+        path: ["NOP", "LAL"],
+        position: "大前鋒 / 中鋒 (PF / C)",
+        draft: "2012年首輪第1順位 (選秀狀元 - 紐奧良黃蜂/鵜鶘)",
+        college: "Kentucky 肯塔基大學",
+        jersey: "23 (黃蜂/鵜鶘/湖人前期), 3 (湖人現役)",
+        funFact: "兼具後衛般運球敏捷度及長人禁區火力的全能神兵，標誌性的「連在一起的眉毛」是他的最大特徵。"
+      },
+      {
+        id: "demar-derozan",
+        nameEn: "DeMar DeRozan",
+        nameZhtw: "德瑪爾·德羅贊",
+        nameZhhk: "迪馬·迪羅辛",
+        aliases: ["DeRozan", "德羅贊", "迪羅辛", "中投靚仔", "阿贊", "德羅展"],
+        path: ["TOR", "SAS", "CHI", "SAC"],
+        position: "得分後衛 / 小前鋒 (SG / SF)",
+        draft: "2009年首輪第9順位 (多倫多暴龍)",
+        college: "USC 南加州大學",
+        jersey: "10 (暴龍/馬刺/國王), 11 (公牛)",
+        funFact: "在現代崇尚三分的浪潮下，仍堅持復古中距離跳投，在中距離單打上臻至化境的名將。"
+      },
+      {
+        id: "ray-allen",
+        nameEn: "Ray Allen",
+        nameZhtw: "雷·阿倫",
+        nameZhhk: "雷·阿倫",
+        aliases: ["Ray", "Allen", "阿倫", "雷槍", "君子雷", "Ray Allen"],
+        path: ["MIL", "SEA", "BOS", "MIA"],
+        position: "得分後衛 (SG)",
+        draft: "1996年首輪第5順位 (明尼蘇達灰狼選中交易至公鹿)",
+        college: "UConn 康乃狄克大學",
+        jersey: "34 (公鹿/超音速/塞爾提克), 20 (熱火)",
+        funFact: "教科書般的投籃姿勢代表，2013總決賽第六戰底角絕平三分救下熱火隊是其傳奇經典。"
+      },
+      {
+        id: "rajon-rondo",
+        nameEn: "Rajon Rondo",
+        nameZhtw: "拉簡·朗多",
+        nameZhhk: "拉簡·朗度",
+        aliases: ["Rondo", "朗多", "朗度", "豆豆", "戰術大師", "Playoff Rondo", "隆多", "軟豆"],
+        path: ["BOS", "DAL", "SAC", "CHI", "NOP", "LAL", "ATL", "LAC", "LAL", "CLE"],
+        position: "控球後衛 (PG)",
+        draft: "2006年首輪第21順位 (鳳凰城太陽選中交易至波士頓塞爾提克)",
+        college: "Kentucky 肯塔基大學",
+        jersey: "9 (塞爾提克/獨行俠/國王/公牛/鵜鶘/湖人/快艇/騎士), 4 (老鷹)",
+        funFact: "擁有極高智商、指揮官大掌的經典控衛，也是極少數分別在「塞爾提克 (2008)」與「湖人 (2020)」兩大宿敵豪門均能奪冠的球員。"
+      },
+      {
+        id: "carmelo-anthony",
+        nameEn: "Carmelo Anthony",
+        nameZhtw: "卡梅隆·安東尼",
+        nameZhhk: "卡美路·安東尼",
+        aliases: ["Anthony", "Carmelo", "安東尼", "甜瓜", "Melo", "進攻萬花筒"],
+        path: ["DEN", "NYK", "OKC", "HOU", "POR", "LAL"],
+        position: "小前鋒 / 大前鋒 (SF / PF)",
+        draft: "2003年首輪第3順位 (丹佛金塊)",
+        college: "Syracuse 雪城大學",
+        jersey: "15 (金塊), 7 (尼克/雷霆/火箭/拓荒者/湖人)",
+        funFact: "2003黃金一代成員，精通各種進攻得分手段的招牌射手「甜瓜」，也是美國國家隊的傳奇功臣。"
+      },
+      {
+        id: "dwyane-wade",
+        nameEn: "Dwyane Wade",
+        nameZhtw: "德懷恩·韋德",
+        nameZhhk: "迪韋恩·韋特",
+        aliases: ["Wade", "韋德", "韋特", "閃電俠", "D-Wade", "Flash"],
+        path: ["MIA", "CHI", "CLE", "MIA"],
+        position: "得分後衛 (SG)",
+        draft: "2003年首輪第5順位 (邁阿密熱火)",
+        college: "Marquette 馬奎特大學",
+        jersey: "3 (所有球隊均使用3號，除騎士時期曾用9號)",
+        funFact: "邁阿密熱火無可爭議的「隊魂」閃電俠，曾率隊奪得三屆總冠軍，並在2006年打出史詩級總決賽表現。"
+      },
+      {
+        id: "demarcus-cousins",
+        nameEn: "DeMarcus Cousins",
+        nameZhtw: "德馬庫斯·考辛斯",
+        nameZhhk: "德馬庫斯·考辛斯",
+        aliases: ["Cousins", "考辛斯", "表哥", "Boogie", "表弟", "考神"],
+        path: ["SAC", "NOP", "GSW", "LAL", "HOU", "LAC", "MIL", "DEN"],
+        position: "中鋒 (C)",
+        draft: "2010年首輪第5順位 (沙加緬度國王)",
+        college: "Kentucky 肯塔基大學",
+        jersey: "15 (國王/鵜鶘/火箭/快艇), 0 (勇士), 15 (公鹿), 7 (金塊)",
+        funFact: "技術極其細膩、擁有三分和策應能力的頂級內線野獸，性格火爆但實力極其強悍。"
+      },
+      {
+        id: "kyle-lowry",
+        nameEn: "Kyle Lowry",
+        nameZhtw: "凱爾·洛瑞",
+        nameZhhk: "Kyle Lowry",
+        aliases: ["Lowry", "洛瑞", "洛神", "小鋼炮", "鋼炮"],
+        path: ["MEM", "HOU", "TOR", "MIA", "CHA", "PHI"],
+        position: "控球後衛 (PG)",
+        draft: "2006年首輪第24順位 (曼菲斯灰熊)",
+        college: "Villanova 費拉諾華大學",
+        jersey: "7 (灰熊/火箭/暴龍/熱火/76人)",
+        funFact: "多倫多暴龍奪冠核心指揮官，以強硬防守、擅長製造進攻犯規與精準組織著稱，被譽為北境之王。"
+      },
+      {
+        id: "jrue-holiday",
+        nameEn: "Jrue Holiday",
+        nameZhtw: "朱·霍勒迪",
+        nameZhhk: "Jrue Holiday",
+        aliases: ["Holiday", "霍勒迪", "哈勒戴", "霍哈", "防守大師"],
+        path: ["PHI", "NOP", "MIL", "BOS"],
+        position: "控球後衛 / 得分後衛 (PG / SG)",
+        draft: "2009年首輪第17順位 (費城76人)",
+        college: "UCLA 加州大學洛杉磯分校",
+        jersey: "11 (76人/鵜鶘/公鹿), 4 (塞爾提克)",
+        funFact: "現役最強悍的外線防守大師，是所有超級球星公認最不想防守的球員，生涯兩度作為關鍵拼圖奪冠。"
+      }
+    ];
+
+    // 2. Team Metadata with Official ESPN CDN mapping keys
+    const teamConfig = {
+      CHI: { name: "芝加哥公牛", abbrev: "CHI", border: "border-red-500", fallbackEmoji: "🐂" },
+      MIN: { name: "明尼蘇達灰狼", abbrev: "MIN", border: "border-emerald-500", fallbackEmoji: "🐺" },
+      PHI: { name: "費城76人", abbrev: "PHI", border: "border-blue-500", fallbackEmoji: "🔔" },
+      MIA: { name: "邁阿密熱火", abbrev: "MIA", border: "border-amber-500", fallbackEmoji: "🔥" },
+      GSW: { name: "金州勇士", abbrev: "GSW", border: "border-yellow-400", fallbackEmoji: "🌉" },
+      CLE: { name: "克里夫蘭騎士", abbrev: "CLE", border: "border-amber-600", fallbackEmoji: "⚔️" },
+      LAL: { name: "洛杉磯湖人", abbrev: "LAL", border: "border-purple-500", fallbackEmoji: "👑" },
+      OKC: { name: "奧克拉荷馬雷霆", abbrev: "OKC", border: "border-sky-400", fallbackEmoji: "⚡" },
+      BKN: { name: "布魯克林籃網", abbrev: "BKN", border: "border-zinc-500", fallbackEmoji: "⚫" },
+      PHX: { name: "鳳凰城太陽", abbrev: "PHX", border: "border-orange-500", fallbackEmoji: "☀️" },
+      DAL: { name: "達拉斯獨行俠", abbrev: "DAL", border: "border-blue-400", fallbackEmoji: "🐴" },
+      LAC: { name: "洛杉磯快艇", abbrev: "LAC", border: "border-red-400", fallbackEmoji: "⛵" },
+      DEN: { name: "丹佛金塊", abbrev: "DEN", border: "border-yellow-500", fallbackEmoji: "⛏️" },
+      NOP: { name: "紐奧良鵜鶘", abbrev: "NOP", border: "border-amber-600", fallbackEmoji: "⚜️" },
+      MIL: { name: "密爾瓦基公鹿", abbrev: "MIL", border: "border-green-600", fallbackEmoji: "🦌" },
+      HOU: { name: "休士頓火箭", abbrev: "HOU", border: "border-red-600", fallbackEmoji: "🚀" },
+      WAS: { name: "華盛頓巫師", abbrev: "WAS", border: "border-blue-600", fallbackEmoji: "🧙‍♂️" },
+      SAS: { name: "聖安東尼奧馬刺", abbrev: "SAS", border: "border-zinc-400", fallbackEmoji: "🤠" },
+      TOR: { name: "多倫多暴龍", abbrev: "TOR", border: "border-red-600", fallbackEmoji: "🦖" },
+      BOS: { name: "波士頓塞爾提克", abbrev: "BOS", border: "border-green-500", fallbackEmoji: "☘️" },
+      POR: { name: "波特蘭拓荒者", abbrev: "POR", border: "border-stone-500", fallbackEmoji: "🌲" },
+      NYK: { name: "紐約尼克", abbrev: "NYK", border: "border-orange-500", fallbackEmoji: "🗽" },
+      DET: { name: "底特律活塞", abbrev: "DET", border: "border-blue-500", fallbackEmoji: "⚙️" },
+      MEM: { name: "曼菲斯灰熊", abbrev: "MEM", border: "border-sky-500", fallbackEmoji: "🐻" },
+      SAC: { name: "沙加緬度國王", abbrev: "SAC", border: "border-violet-500", fallbackEmoji: "👑" },
+      ATL: { name: "亞特蘭大老鷹", abbrev: "ATL", border: "border-red-500", fallbackEmoji: "🦅" },
+      ORL: { name: "奧蘭多魔術", abbrev: "ORL", border: "border-blue-400", fallbackEmoji: "🪄" },
+      SEA: { name: "西雅圖超音速", abbrev: "SEA", border: "border-emerald-600", fallbackEmoji: "🟢" },
+      IND: { name: "印第安納溜馬", abbrev: "IND", border: "border-yellow-500", fallbackEmoji: "🏎️" },
+      UTA: { name: "猶他爵士", abbrev: "UTA", border: "border-purple-400", fallbackEmoji: "🎵" },
+      CHA: { name: "夏洛特黃蜂", abbrev: "CHA", border: "border-teal-500", fallbackEmoji: "🐝" }
+    };
+
+    // 3. State variables
+    let currentStreak = 0;
+    let maxStreak = 0;
+    let lives = 3;
+    let currentPlayer = null;
+    let revealedHintsCount = 0;
+    let isMuted = false;
+    let wrongGuessesLog = [];
+    let playedPlayerIds = [];
+    let wrongGuessesCount = 0;
+
+    // Audio Tone setup
+    let audioCtx = null;
+
+    // Confetti canvas setup
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    let confettiParticles = [];
+    let animationFrameId = null;
+
+    // On Load Initialization
+    window.onload = function() {
+      // Setup canvas resize listener
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      
+      // Load scoreboard
+      currentStreak = 0;
+      maxStreak = 0;
+      lives = 3;
+      updateStreakUI();
+
+      // Trigger first random level
+      initLevel();
+
+      // Setup outside clicks for autocomplete container
+      document.addEventListener('click', function(e) {
+        const suggList = document.getElementById('suggestions-list');
+        const searchInput = document.getElementById('player-search-input');
+        if (!searchInput.contains(e.target) && !suggList.contains(e.target)) {
+          suggList.classList.add('hidden');
+        }
+      });
+    };
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    // Initialize/Create Level (Purely random first level as requested!)
+    function initLevel() {
+      if (playedPlayerIds.length >= players.length) {
+        playedPlayerIds = []; // reset if all played
+      }
+      
+      let available = players.filter(p => !playedPlayerIds.includes(p.id));
+      if (available.length === 0) available = players;
+
+      // Fully random! Jimmy Butler is no longer forced as first level
+      currentPlayer = available[Math.floor(Math.random() * available.length)];
+
+      playedPlayerIds.push(currentPlayer.id);
+      
+      // Reset state for the current level (lives no longer reset here to persist across rounds!)
+      revealedHintsCount = 0;
+      wrongGuessesLog = [];
+      wrongGuessesCount = 0;
+
+      // Update UI elements
+      updateLivesUI();
+      document.getElementById('hints-revealed-text').textContent = `0/3`;
+      document.getElementById('round-num').textContent = playedPlayerIds.length;
+      
+      // Reset elements and boxes
+      document.getElementById('wrong-guesses-log').classList.add('hidden');
+      document.getElementById('wrong-list').innerHTML = '';
+      document.getElementById('hint-display-box').classList.add('hidden');
+      document.getElementById('player-search-input').value = '';
+      document.getElementById('clear-search').classList.add('hidden');
+      
+      // Reset hint button text
+      const hintBtn = document.getElementById('get-hint-btn');
+      hintBtn.innerHTML = `<i class="fa-solid fa-lightbulb"></i> <span>獲取提示 (消耗 1 個 🏀)</span>`;
+      hintBtn.className = "w-full bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 text-amber-400 border border-amber-500/30 py-3 rounded-xl text-xs xs:text-sm font-bold transition flex items-center justify-center space-x-2";
+
+      // Reset silhouette glow color
+      const glow = document.getElementById('silhouette-glow');
+      glow.className = "absolute inset-0 bg-blue-500/10 animate-pulse";
+      document.getElementById('silhouette-question').textContent = "?";
+
+      // Render Career Path
+      renderCareerPath(currentPlayer.path);
+    }
+
+    // Update Lives Representation (Basketball emojis!)
+    function updateLivesUI() {
+      const display = document.getElementById('lives-display');
+      let stars = "";
+      for (let i = 0; i < lives; i++) {
+        stars += "🏀";
+      }
+      if (lives === 0) {
+        stars = "💀";
+      }
+      display.textContent = stars;
+    }
+
+    // Render Career Path using fluid responsive sizing
+    function renderCareerPath(pathArray) {
+      const container = document.getElementById('career-path-container');
+      container.innerHTML = '';
+
+      pathArray.forEach((teamCode, index) => {
+        const team = teamConfig[teamCode] || { name: teamCode, abbrev: teamCode, border: "border-zinc-500", fallbackEmoji: "🏀" };
+        
+        // Responsive dimensions: w-14 xs:w-16 sm:w-20
+        const badge = document.createElement('div');
+        badge.className = `flex flex-col items-center justify-between p-1.5 xs:p-2 rounded-xl bg-slate-900 border-2 ${team.border} w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 shadow-lg transform transition active:scale-95 cursor-pointer relative overflow-hidden`;
+        badge.onclick = () => {
+          showTooltip(team.name);
+          playTone(400, 0.05);
+        };
+
+        const overlay = document.createElement('div');
+        overlay.className = "absolute inset-0 bg-white/5 pointer-events-none";
+        badge.appendChild(overlay);
+
+        // Real Logo image
+        const logoImg = document.createElement('img');
+        logoImg.src = `https://a.espncdn.com/i/teamlogos/nba/500/${teamCode.toLowerCase()}.png`;
+        logoImg.alt = team.name;
+        logoImg.className = "w-8 h-8 xs:w-10 xs:h-10 sm:w-12 sm:h-12 object-contain z-10 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.5)]";
+        
+        // Fallback Container if Image Load fails
+        const fallbackContainer = document.createElement('div');
+        fallbackContainer.className = "hidden flex flex-col items-center justify-center z-10";
+        fallbackContainer.innerHTML = `<span class="text-base xs:text-lg">${team.fallbackEmoji}</span>`;
+
+        logoImg.onerror = function() {
+          logoImg.classList.add('hidden');
+          fallbackContainer.classList.remove('hidden');
+        };
+
+        badge.appendChild(logoImg);
+        badge.appendChild(fallbackContainer);
+
+        // Abbreviation label
+        const textSpan = document.createElement('span');
+        textSpan.className = `text-[8px] xs:text-[10px] sm:text-xs font-black tracking-wider leading-none mb-0.5 text-slate-300 z-10`;
+        textSpan.textContent = team.abbrev;
+        badge.appendChild(textSpan);
+
+        container.appendChild(badge);
+
+        // Add Directional Arrow if not end node
+        if (index < pathArray.length - 1) {
+          const arrow = document.createElement('div');
+          arrow.className = "text-slate-600 text-[10px] xs:text-xs px-0.5 animate-pulse flex items-center justify-center";
+          arrow.innerHTML = `<i class="fa-solid fa-arrow-right-long"></i>`;
+          container.appendChild(arrow);
+        }
+      });
+    }
+
+    // Dynamic Tooltip
+    function showTooltip(message) {
+      const toast = document.createElement('div');
+      toast.className = "fixed bottom-1/4 left-1/2 transform -translate-x-1/2 bg-slate-900/95 border border-slate-700 text-amber-400 font-bold px-4 py-2 rounded-full text-xs shadow-2xl z-50 transition-opacity duration-300 flex items-center space-x-1.5";
+      toast.innerHTML = `<i class="fa-solid fa-basketball text-sm animate-spin"></i><span>${message}</span>`;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 1200);
+    }
+
+    // Autocomplete handling (Only Autofills, No Auto-submit)
+    function handleSearchInput() {
+      const input = document.getElementById('player-search-input');
+      const val = input.value.trim().toLowerCase();
+      const list = document.getElementById('suggestions-list');
+      const clearBtn = document.getElementById('clear-search');
+
+      if (val.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+
+      if (val === '') {
+        list.classList.add('hidden');
+        return;
+      }
+
+      const filtered = players.filter(p => {
+        return p.nameEn.toLowerCase().includes(val) || 
+               p.nameZhtw.includes(val) || 
+               p.nameZhhk.includes(val) || 
+               p.aliases.some(alias => alias.toLowerCase().includes(val));
+      });
+
+      if (filtered.length === 0) {
+        list.classList.add('hidden');
+        return;
+      }
+
+      list.innerHTML = '';
+      filtered.forEach(p => {
+        const item = document.createElement('div');
+        item.className = "px-4 py-3 hover:bg-slate-900/90 active:bg-blue-900/30 cursor-pointer text-xs flex justify-between items-center transition";
+        item.onclick = function() {
+          input.value = p.nameZhtw; // Fill standard traditional name in input field
+          list.classList.add('hidden');
+          playTone(520, 0.08);
+          // Autofill complete -- player must explicitly hit submit guess button!
+        };
+
+        const namesContainer = document.createElement('div');
+        namesContainer.className = "flex flex-col space-y-0.5";
+        
+        const mainName = document.createElement('span');
+        mainName.className = "font-bold text-slate-100 text-xs xs:text-sm";
+        mainName.textContent = `${p.nameZhtw} / ${p.nameZhhk}`;
+
+        const secondaryName = document.createElement('span');
+        secondaryName.className = "text-[9px] xs:text-[10px] text-slate-500";
+        secondaryName.textContent = p.nameEn;
+
+        namesContainer.appendChild(mainName);
+        namesContainer.appendChild(secondaryName);
+
+        // Position Badge
+        const pos = document.createElement('span');
+        pos.className = "bg-slate-800 text-[9px] text-slate-400 px-1.5 py-0.5 rounded-full border border-slate-700/50";
+        pos.textContent = p.position.split(' ')[0];
+
+        item.appendChild(namesContainer);
+        item.appendChild(pos);
+        list.appendChild(item);
+      });
+
+      list.classList.remove('hidden');
+    }
+
+    function clearSearch() {
+      document.getElementById('player-search-input').value = '';
+      document.getElementById('clear-search').classList.add('hidden');
+      document.getElementById('suggestions-list').classList.add('hidden');
+      playTone(300, 0.05);
+    }
+
+    // Audio synthesizer engine
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playTone(freq, duration, type = "sine") {
+      if (isMuted) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      
+      gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playSuccessSound() {
+      if (isMuted) return;
+      initAudio();
+      const freqs = [261.6, 329.6, 392.0, 523.3, 659.3, 784.0, 1046.5]; 
+      freqs.forEach((f, i) => {
+        setTimeout(() => {
+          playTone(f, 0.25, "triangle");
+        }, i * 70);
+      });
+    }
+
+    function playFailSound() {
+      if (isMuted) return;
+      initAudio();
+      playTone(220, 0.15, "sawtooth");
+      setTimeout(() => {
+        playTone(147, 0.35, "sawtooth");
+      }, 120);
+    }
+
+    function toggleAudio() {
+      isMuted = !isMuted;
+      const icon = document.getElementById('audio-icon');
+      if (isMuted) {
+        icon.className = "fa-solid fa-volume-xmark text-red-400";
+      } else {
+        icon.className = "fa-solid fa-volume-high text-blue-400";
+        initAudio();
+        playTone(600, 0.1);
+      }
+    }
+
+    // Dynamic Hint Engine - Consumes 1 Life (🏀) per hint
+    function getHint() {
+      // Prevent consuming the very last life
+      if (lives <= 1) {
+        showTooltip("⚠️ 生命值只剩 1 個，無法獲取提示！");
+        playTone(150, 0.15);
+        return;
+      }
+
+      // Check if all hints unlocked
+      if (revealedHintsCount >= 3) {
+        showTooltip("💡 所有提示已全部解鎖！");
+        return;
+      }
+
+      // Deduct 1 Life & Unlock
+      lives--;
+      revealedHintsCount++;
+      updateLivesUI();
+      playTone(450, 0.08);
+
+      document.getElementById('hints-revealed-text').textContent = `${revealedHintsCount}/3`;
+
+      const box = document.getElementById('hint-display-box');
+      const title = document.getElementById('hint-title');
+      const body = document.getElementById('hint-body');
+
+      box.classList.remove('hidden');
+
+      if (revealedHintsCount === 1) {
+        title.innerHTML = `<i class="fa-solid fa-id-card text-blue-400"></i> 提示一：位置與選秀背景`;
+        body.innerHTML = `<strong>主要位置：</strong> ${currentPlayer.position}<br><strong>選秀：</strong> ${currentPlayer.draft}`;
+      } else if (revealedHintsCount === 2) {
+        title.innerHTML = `<i class="fa-solid fa-shirt text-red-400"></i> 提示二：曾效力時的球衣號碼`;
+        body.innerHTML = `<strong>球衣背號：</strong> ${currentPlayer.jersey}`;
+      } else if (revealedHintsCount === 3) {
+        title.innerHTML = `<i class="fa-solid fa-lightbulb text-amber-400"></i> 提示三：球員趣事`;
+        body.innerHTML = `<strong>趣事故事：</strong> ${currentPlayer.funFact}`;
+        
+        // Adjust button when maximum level hints are unlocked
+        const hintBtn = document.getElementById('get-hint-btn');
+        hintBtn.className = "w-full bg-slate-800 text-slate-500 border border-slate-700 py-3 rounded-xl text-xs xs:text-sm font-bold transition flex items-center justify-center space-x-2 cursor-not-allowed";
+        hintBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>所有提示已解鎖</span>`;
+      }
+    }
+
+    // Submit user's guess
+    function submitGuess() {
+      const input = document.getElementById('player-search-input');
+      const guessStr = input.value.trim().toLowerCase();
+      
+      if (!guessStr) {
+        shakeInput();
+        return;
+      }
+
+      // Hide list
+      document.getElementById('suggestions-list').classList.add('hidden');
+
+      const matchedPlayer = players.find(p => {
+        return p.nameEn.toLowerCase() === guessStr ||
+               p.nameZhtw === guessStr ||
+               p.nameZhhk === guessStr ||
+               p.aliases.some(alias => alias.toLowerCase() === guessStr);
+      });
+
+      if (!matchedPlayer) {
+        showTooltip("⚠️ 找不到該球員名字，請使用下拉清單選取！");
+        shakeInput();
+        playTone(150, 0.2);
+        return;
+      }
+
+      if (matchedPlayer.id === currentPlayer.id) {
+        handleWin();
+      } else {
+        handleLoss(matchedPlayer);
+      }
+    }
+
+    // Shake Search Input styling on failure
+    function shakeInput() {
+      const container = document.getElementById('player-search-input').parentElement;
+      container.classList.add('animate-shake', 'border-red-500');
+      setTimeout(() => {
+        container.classList.remove('animate-shake', 'border-red-500');
+      }, 300);
+    }
+
+    function handleWin() {
+      currentStreak++;
+      if (currentStreak > maxStreak) {
+        maxStreak = currentStreak;
+      }
+      updateStreakUI();
+      playSuccessSound();
+      startConfetti();
+
+      // Show Crown on silhouette
+      const glow = document.getElementById('silhouette-glow');
+      glow.className = "absolute inset-0 bg-amber-500/30 animate-pulse";
+      document.getElementById('silhouette-question').textContent = "👑";
+
+      setTimeout(() => {
+        showResultModal(true);
+      }, 500);
+    }
+
+    function handleLoss(wrongPlayer) {
+      wrongGuessesCount++;
+      lives--; // 猜錯扣減一個生命值
+      updateLivesUI();
+      playFailSound();
+
+      wrongGuessesLog.push(wrongPlayer);
+      const logContainer = document.getElementById('wrong-guesses-log');
+      if (logContainer) logContainer.classList.remove('hidden');
+      
+      const list = document.getElementById('wrong-list');
+      if (list) {
+        const item = document.createElement('li');
+        let diffText = "";
+        if (wrongPlayer.path.length !== currentPlayer.path.length) {
+          diffText = `效力隊伍數不同 (${wrongPlayer.path.length} 支 vs ${currentPlayer.path.length} 支)`;
+        } else {
+          diffText = `效力隊伍軌跡不符`;
+        }
+        item.innerHTML = `<strong>${wrongPlayer.nameZhtw}</strong> - ${diffText}`;
+        list.appendChild(item);
+      }
+
+      document.getElementById('player-search-input').value = '';
+      document.getElementById('clear-search').classList.add('hidden');
+
+      if (lives <= 0) {
+        showResultModal(false);
+      } else {
+        showTooltip(`❌ 猜錯囉！此軌跡不屬於 ${wrongPlayer.nameZhtw}。`);
+      }
+    }
+
+    function updateStreakUI() {
+      const currentStreakEl = document.getElementById('current-streak');
+      const maxStreakEl = document.getElementById('max-streak');
+      
+      if (currentStreakEl) {
+        currentStreakEl.textContent = currentStreak;
+      }
+      if (maxStreakEl) {
+        maxStreakEl.textContent = maxStreak;
+      }
+    }
+
+    // Modal Display with full profiles
+    function showResultModal(isSuccess) {
+      const modal = document.getElementById('result-modal');
+      const title = document.getElementById('result-title');
+      const sub = document.getElementById('result-subtitle');
+      const iconBox = document.getElementById('result-status-icon');
+      const streakLabel = document.getElementById('result-streak-label');
+      const actionBtn = document.getElementById('result-next-btn');
+
+      if (isSuccess) {
+        title.textContent = "答案正確！";
+        title.className = "font-black text-lg text-amber-400 tracking-wide mt-1.5";
+        sub.textContent = "";
+        iconBox.innerHTML = `<i class="fa-solid fa-trophy"></i>`;
+        iconBox.className = "w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500 flex items-center justify-center text-2xl text-amber-400 animate-bounce shadow-neonAmber";
+        if (streakLabel) streakLabel.textContent = "當前連勝";
+        
+        // Success Button
+        actionBtn.className = "w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-2.5 rounded-xl text-xs xs:text-sm transition shadow-neonBlue";
+        actionBtn.innerHTML = `進入下一關挑戰 <i class="fa-solid fa-circle-arrow-right ml-1"></i>`;
+        actionBtn.setAttribute('onclick', 'nextLevel()');
+      } else {
+        title.textContent = "挑戰失敗！公佈答案";
+        title.className = "font-black text-lg text-red-500 tracking-wide mt-1.5";
+        sub.textContent = "";
+        iconBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i>`;
+        iconBox.className = "w-14 h-14 rounded-full bg-red-500/10 border border-red-500 flex items-center justify-center text-2xl text-red-400 animate-pulse shadow-neonRed";
+        if (streakLabel) streakLabel.textContent = "最終連勝";
+        
+        // Failure Button
+        actionBtn.className = "w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black py-2.5 rounded-xl text-xs xs:text-sm transition shadow-neonRed";
+        actionBtn.innerHTML = `重新挑戰 <i class="fa-solid fa-rotate-right ml-1"></i>`;
+        actionBtn.setAttribute('onclick', 'restartGame()');
+      }
+
+      // Populate Player Profile
+      document.getElementById('result-player-name-zh').textContent = `${currentPlayer.nameZhtw} / ${currentPlayer.nameZhhk}`;
+      document.getElementById('result-player-name-en').textContent = currentPlayer.nameEn;
+      const posEl = document.getElementById('result-player-pos');
+      if (posEl) posEl.textContent = currentPlayer.position.split(' ')[0];
+      document.getElementById('result-player-draft').textContent = currentPlayer.draft;
+      document.getElementById('result-player-college').textContent = currentPlayer.college;
+      document.getElementById('result-player-jersey').textContent = currentPlayer.jersey;
+      document.getElementById('result-player-fact').textContent = `💡 ${currentPlayer.funFact}`;
+
+      // Stats
+      document.getElementById('result-streak').textContent = currentStreak;
+
+      modal.classList.remove('hidden');
+    }
+
+    function nextLevel() {
+      document.getElementById('result-modal').classList.add('hidden');
+      stopConfetti();
+      playTone(500, 0.08);
+      initLevel();
+    }
+
+    // Reset whole session
+    function restartGame() {
+      document.getElementById('result-modal').classList.add('hidden');
+      document.getElementById('hof-modal').classList.add('hidden');
+      stopConfetti();
+      playTone(500, 0.08);
+      
+      // Clear game session history
+      playedPlayerIds = [];
+      currentStreak = 0;
+      lives = 3;
+      updateStreakUI();
+      initLevel();
+    }
+
+    // Grand Finale Season End Handler
+    function showGrandFinale() {
+      const modal = document.getElementById('hof-modal');
+      const titleBadge = document.getElementById('hof-rating-title');
+      const descText = document.getElementById('hof-rating-desc');
+      
+      document.getElementById('hof-max-streak').textContent = maxStreak;
+      document.getElementById('hof-total-cleared').textContent = `${playedPlayerIds.length} / ${players.length}`;
+
+      // Dynamic evaluations based on user's max streak achievements
+      if (maxStreak >= players.length) {
+        titleBadge.textContent = "GOAT 歷史第一人";
+        descText.textContent = "無可匹敵！你以完美不敗之姿橫掃整個賽季！奈史密斯名人堂毫無疑問全票通過你的不朽偉業！";
+      } else if (maxStreak >= 12) {
+        titleBadge.textContent = "常規賽 MVP";
+        descText.textContent = "統治全場！你展現了絕對超凡的球星軌跡判斷力，毫無爭議奪下賽季 MVP 獎盃！";
+      } else if (maxStreak >= 6) {
+        titleBadge.textContent = "全明星首發 All-Star";
+        descText.textContent = "實力非凡！你是賽季的絕對全明星亮點球員，卓越的籃球敏銳度引來全場歡呼！";
+      } else {
+        titleBadge.textContent = "最佳第六人 Role Player";
+        descText.textContent = "板凳神兵！雖然賽季中稍有失誤，但你的精采發揮仍是隊伍不可或缺的冠軍拼圖！";
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    // Modal Helpers
+    function showHelpModal() {
+      playTone(400, 0.05);
+      document.getElementById('help-modal').classList.remove('hidden');
+    }
+
+    function closeHelpModal() {
+      playTone(300, 0.05);
+      document.getElementById('help-modal').classList.add('hidden');
+    }
+
+    // 4. Custom Self-Contained Lightweight Confetti System
+    function startConfetti() {
+      confettiParticles = [];
+      const colors = ['#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#a855f7', '#ec4899'];
+      for (let i = 0; i < 120; i++) {
+        confettiParticles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height - canvas.height,
+          size: Math.random() * 8 + 5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          speedX: Math.random() * 6 - 3,
+          speedY: Math.random() * 6 + 4,
+          rotation: Math.random() * 360,
+          rotationSpeed: Math.random() * 8 - 4
+        });
+      }
+      animateConfetti();
+    }
+
+    function animateConfetti() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      
+      confettiParticles.forEach(p => {
+        p.x += p.speedX;
+        p.y += p.speedY;
+        p.rotation += p.rotationSpeed;
+
+        if (p.y < canvas.height) {
+          alive = true;
+        }
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        ctx.restore();
+      });
+
+      if (alive) {
+        animationFrameId = requestAnimationFrame(animateConfetti);
+      }
+    }
+
+    function stopConfetti() {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  </script>
+</body>
+</html>
